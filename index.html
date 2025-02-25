@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Dictation Monitoring</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 800px;
+        }
+
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        .date-input {
+            margin-bottom: 20px;
+            text-align: center;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .date-field {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .date-field label {
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .date-input input {
+            padding: 8px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 140px;
+        }
+
+        .button-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            justify-content: center;
+            width: 100%;
+        }
+
+        button {
+            padding: 8px 16px;
+            font-size: 16px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        #statusMessage {
+            text-align: center;
+            margin: 10px 0;
+            padding: 8px;
+            border-radius: 4px;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .loading {
+            background-color: #e2f3f5;
+            color: #0c5460;
+        }
+
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 16px;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #3498db;
+            color: white;
+            font-weight: bold;
+        }
+
+        tr {
+            background-color: #ffffff;
+        }
+
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .user-details {
+            background-color: #f8f9fa;
+            padding: 10px;
+            margin-top: 5px;
+            border-radius: 4px;
+            display: none;
+        }
+
+        .show-details {
+            cursor: pointer;
+            color: #3498db;
+            text-decoration: underline;
+        }
+
+        .progress-container {
+            text-align: center;
+            margin: 10px 0;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background-color: #3498db;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        @media (max-width: 600px) {
+            table, th, td {
+                font-size: 14px;
+            }
+            th, td {
+                padding: 8px;
+            }
+            .container {
+                width: 95%;
+                padding: 10px;
+            }
+            .date-input {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>User Dictation Activity</h1>
+        
+        <div class="date-input">
+            <div class="date-field">
+                <label for="startDate">Start Date</label>
+                <input type="date" id="startDate">
+            </div>
+            
+            <div class="date-field">
+                <label for="endDate">End Date</label>
+                <input type="date" id="endDate">
+            </div>
+            
+            <div class="button-container">
+                <button id="loadButton" onclick="loadActivity()">Show Activity</button>
+                <button id="allDataButton" onclick="loadAllData()">Show All Data</button>
+            </div>
+        </div>
+        
+        <div id="statusMessage"></div>
+        
+        <div class="progress-container" style="display: none;" id="progressContainer">
+            <p id="progressText">Loading data...</p>
+            <div class="progress-bar">
+                <div class="progress-bar-fill" id="progressBarFill"></div>
+            </div>
+        </div>
+        
+        <table id="activityTable">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Total Recordings</th>
+                    <th>Total Duration</th>
+                    <th>Last Activity</th>
+                </tr>
+            </thead>
+            <tbody id="activityBody"></tbody>
+        </table>
+    </div>
+
+    <script>
+        // API URL - Change this to match your server
+        const API_URL = 'http://localhost:5000/api/dictation';
+        
+        // Format the time in a readable way
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}m ${secs}s`;
+        }
+        
+        // Format the date in a readable way
+        function formatDate(dateString) {
+            if (!dateString) return 'Unknown';
+            
+            try {
+                const date = new Date(dateString);
+                if (isNaN(date.getTime())) return dateString; // Return original if parsing fails
+                return date.toLocaleString();
+            } catch (e) {
+                console.warn("Date parsing error:", e);
+                return dateString; // Return original string if error
+            }
+        }
+        
+        // Format date as YYYY-MM-DD for API
+        function formatDateForAPI(dateString) {
+            if (!dateString) return '';
+            
+            try {
+                const date = new Date(dateString);
+                if (isNaN(date.getTime())) return ''; // Return empty if parsing fails
+                
+                // Format as YYYY-MM-DD
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                
+                return `${year}-${month}-${day}`;
+            } catch (e) {
+                console.warn("Date formatting error:", e);
+                return ''; // Return empty string if error
+            }
+        }
+        
+        // Toggle user details visibility
+        function toggleDetails(username) {
+            const details = document.getElementById(`details-${username}`);
+            if (details.style.display === 'none' || !details.style.display) {
+                details.style.display = 'block';
+            } else {
+                details.style.display = 'none';
+            }
+        }
+
+        // Show status message
+        function showStatus(message, type) {
+            const statusEl = document.getElementById('statusMessage');
+            statusEl.textContent = message;
+            statusEl.className = type;
+        }
+        
+        // Show progress
+        function showProgress(show, text = 'Loading data...') {
+            const container = document.getElementById('progressContainer');
+            const progressText = document.getElementById('progressText');
+            
+            if (show) {
+                container.style.display = 'block';
+                progressText.textContent = text;
+            } else {
+                container.style.display = 'none';
+            }
+        }
+        
+        // Update progress bar
+        function updateProgressBar(percent) {
+            const fill = document.getElementById('progressBarFill');
+            fill.style.width = `${percent}%`;
+        }
+
+        // Show all data without date filtering
+        function loadAllData() {
+            // Clear all date inputs
+            document.getElementById('startDate').value = '';
+            document.getElementById('endDate').value = '';
+            
+            // Load without date filters
+            loadActivity();
+        }
+
+        async function loadActivity() {
+            const startDateInput = document.getElementById('startDate').value;
+            const endDateInput = document.getElementById('endDate').value;
+            const loadButton = document.getElementById('loadButton');
+            const allDataButton = document.getElementById('allDataButton');
+            
+            // Format dates as YYYY-MM-DD for API
+            const startDate = formatDateForAPI(startDateInput);
+            const endDate = formatDateForAPI(endDateInput);
+            
+            // Log the dates being used
+            console.log('Original start date:', startDateInput);
+            console.log('Original end date:', endDateInput);
+            console.log('Formatted start date for API:', startDate);
+            console.log('Formatted end date for API:', endDate);
+            
+            // Disable buttons and show loading status
+            loadButton.disabled = true;
+            allDataButton.disabled = true;
+            showStatus('Loading data from server...', 'loading');
+            showProgress(true);
+            updateProgressBar(10); // Initial progress
+            
+            try {
+                // Build URL with parameters
+                let url = new URL(API_URL);
+                if (startDate) {
+                    url.searchParams.append('startDate', startDate);
+                }
+                if (endDate) {
+                    url.searchParams.append('endDate', endDate);
+                }
+                
+                console.log('Fetching from URL:', url.toString());
+                
+                // Request might take some time for large datasets
+                updateProgressBar(30);
+                
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                updateProgressBar(70);
+                
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status}`);
+                }
+                
+                let data;
+                try {
+                    data = await response.json();
+                    console.log('Fetched data:', data);
+                } catch (parseError) {
+                    const text = await response.text();
+                    console.error('Failed to parse JSON:', text);
+                    throw new Error('Invalid response format from server');
+                }
+                
+                updateProgressBar(90);
+                
+                if (typeof data === 'object' && Object.keys(data).length === 0) {
+                    let message = 'No data found';
+                    if (startDate || endDate) {
+                        message += ' for the selected date range';
+                    }
+                    showStatus(message + '.', 'success');
+                    document.getElementById('activityBody').innerHTML = '';
+                    return;
+                }
+                
+                const tableBody = document.getElementById('activityBody');
+                tableBody.innerHTML = ''; // Clear existing rows
+                
+                // Show success message
+                const userCount = Object.keys(data).length;
+                showStatus(`Found data for ${userCount} user${userCount !== 1 ? 's' : ''}`, 'success');
+                
+                for (const [username, activities] of Object.entries(data)) {
+                    if (!Array.isArray(activities) || activities.length === 0) continue;
+                    
+                    // Create a date filter if dates are provided
+                    let filteredActivities = activities;
+                    if (startDateInput || endDateInput) {
+                        const startDateTime = startDateInput ? new Date(startDateInput) : null;
+                        const endDateTime = endDateInput ? new Date(endDateInput) : null;
+                        
+                        // Set end date to end of day
+                        if (endDateTime) {
+                            endDateTime.setHours(23, 59, 59, 999);
+                        }
+                        
+                        // Apply client-side date filter for extra safety
+                        filteredActivities = activities.filter(act => {
+                            const activityDate = new Date(act.last_modified);
+                            
+                            if (startDateTime && activityDate < startDateTime) {
+                                return false;
+                            }
+                            
+                            if (endDateTime && activityDate > endDateTime) {
+                                return false;
+                            }
+                            
+                            return true;
+                        });
+                        
+                        // Skip this user if no activities within date range
+                        if (filteredActivities.length === 0) continue;
+                    }
+                    
+                    const totalDuration = filteredActivities.reduce((sum, act) => sum + (act.duration || 0), 0);
+                    let lastActivity = filteredActivities[0]?.last_modified || 'Unknown';
+                    
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${username}</td>
+                        <td>${filteredActivities.length}</td>
+                        <td>${formatTime(totalDuration)}</td>
+                        <td>${formatDate(lastActivity)}</td>
+                    `;
+                    
+                    // Add expandable details section
+                    const detailsRow = document.createElement('tr');
+                    detailsRow.innerHTML = `
+                        <td colspan="4">
+                            <div id="details-${username}" class="user-details">
+                                <h3>Recording Details</h3>
+                                <ul>
+                                    ${filteredActivities.slice(0, 5).map(act => `
+                                        <li>File: ${act.file ? act.file.split('/').pop() : 'unknown'} - ${formatDate(act.last_modified)}</li>
+                                    `).join('')}
+                                    ${filteredActivities.length > 5 ? `<li>...and ${filteredActivities.length - 5} more recordings</li>` : ''}
+                                </ul>
+                            </div>
+                            <div class="show-details" onclick="toggleDetails('${username}')">Show/Hide Details</div>
+                        </td>
+                    `;
+                    
+                    tableBody.appendChild(row);
+                    tableBody.appendChild(detailsRow);
+                }
+                
+                updateProgressBar(100);
+                
+            } catch (error) {
+                console.error('Error loading activity:', error);
+                showStatus(`Error: ${error.message}. Check console for details.`, 'error');
+                
+                // Clear table on error
+                document.getElementById('activityBody').innerHTML = '';
+            } finally {
+                // Re-enable buttons and hide progress
+                loadButton.disabled = false;
+                allDataButton.disabled = false;
+                showProgress(false);
+            }
+        }
+
+        // Initialize the page
+        window.onload = function() {
+            // Set default date to today
+            const today = new Date();
+            document.getElementById('startDate').valueAsDate = today;
+            document.getElementById('endDate').valueAsDate = today;
+            
+            // Load data with default date filters
+            loadActivity();
+        };
+    </script>
+</body>
+</html>
