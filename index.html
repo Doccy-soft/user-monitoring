@@ -65,7 +65,7 @@
         const baseReconnectDelay = 200; // Reduced to 200ms for faster reconnection
         let micStream = null;
         const silenceThreshold = 0.03; // RMS amplitude threshold for silence
-        const silenceDuration = 500; // Silence duration to split segments (ms)
+        const silenceDuration = 2000; // Silence duration to split segments (ms)
         let silenceStart = null;
         let nonSilentSamples = [];
         let sourceNode;
